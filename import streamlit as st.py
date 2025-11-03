@@ -1,100 +1,62 @@
 import streamlit as st
 import time
+import streamlit.components.v1 as components
 
-# ---------------------------- CONSTANTS ------------------------------- #
+# ---------------------------- CONFIG ------------------------------- #
 PINK = "#e2979c"
 BLUE = "#18abde"
 WHITE = "#ffffff"
-
-WORK_SEC = 60       # Change to 60 for full minute
+WORK_SEC = 60
 HALF_WORK = WORK_SEC / 2
 SHORT_BREAK_SEC = 10
 
-# ---------------------------- SOUND FUNCTION ------------------------------- #
-# Streamlit can't play real beeps, but we can play HTML audio elements
-def play_sound(frequency="start"):
-    if frequency == "start":
-        sound_url = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
-    elif frequency == "half":
-        sound_url = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
-    else:  # end
-        sound_url = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+st.set_page_config(page_title="Yoga Timer", page_icon="🧘", layout="centered")
 
-    st.markdown(
-        f"""
-        <audio autoplay>
-            <source src="{sound_url}" type="audio/ogg">
-        </audio>
-        """,
-        unsafe_allow_html=True
-    )
+# ---------------------------- SOUND PLAYER -------------------------- #
+# JavaScript for sound playback
+def play_sound_js(file):
+    components.html(f"""
+        <audio id="sound" src="{file}" autoplay></audio>
+    """, height=0)
 
-# ---------------------------- TIMER LOGIC ------------------------------- #
-def yoga_timer():
-    st.subheader("🕉️ Center yourself...")
+# ---------------------------- TIMER LOGIC ---------------------------- #
+def countdown(seconds, phase_name, color, sound_file):
+    st.markdown(f"<h2 style='color:{color}'>{phase_name}</h2>", unsafe_allow_html=True)
+    placeholder = st.empty()
 
-    col1, col2 = st.columns(2)
-    start = col1.button("Start")
-    stop = col2.button("End")
+    # Start sound (user click will already allow playback)
+    play_sound_js(sound_file)
 
-    header_placeholder = st.empty()
-    timer_placeholder = st.empty()
+    for remaining in range(seconds, -1, -1):
+        placeholder.markdown(f"<h1 style='color:{color};'>{remaining:02d}</h1>", unsafe_allow_html=True)
+        time.sleep(1)
+        if remaining == HALF_WORK:
+            play_sound_js("beep2.mp3")
 
-    if start:
-        reps = 0
-        running = True
-        phase = "prepare"
-        count = SHORT_BREAK_SEC
-        header_placeholder.markdown(
-            f"<h2 style='color:{PINK}'>Prepare</h2>", unsafe_allow_html=True
-        )
-        play_sound("start")
+# ---------------------------- APP UI ------------------------------- #
+st.title("🧘 Yoga Timer")
+st.write("Alternate between **Stretch** and **Prepare** phases.")
 
-        while running:
-            minutes = count // 60
-            seconds = count % 60
-            timer_placeholder.markdown(
-                f"<h1 style='color:{BLUE};'>{int(minutes):02d}:{int(seconds):02d}</h1>",
-                unsafe_allow_html=True,
-            )
-            time.sleep(1)
-            count -= 1
+if "running" not in st.session_state:
+    st.session_state.running = False
+    st.session_state.reps = 0
 
-            # Play half beep in the middle of stretch
-            if phase == "stretch" and count == HALF_WORK:
-                play_sound("half")
+start = st.button("Start Timer 🕒")
+stop = st.button("Stop 🔴")
 
-            # When timer hits zero, switch phases
-            if count <= 0:
-                reps += 1
-                if phase == "prepare":
-                    phase = "stretch"
-                    header_placeholder.markdown(
-                        f"<h2 style='color:{BLUE}'>Stretch</h2>", unsafe_allow_html=True
-                    )
-                    play_sound("start")
-                    count = WORK_SEC
-                else:
-                    phase = "prepare"
-                    header_placeholder.markdown(
-                        f"<h2 style='color:{PINK}'>Prepare</h2>", unsafe_allow_html=True
-                    )
-                    play_sound("end")
-                    count = SHORT_BREAK_SEC
+if start:
+    st.session_state.running = True
+    st.session_state.reps = 0
 
-            if stop:
-                running = False
-                header_placeholder.markdown(
-                    "<h2>Session Ended 🧘‍♀️</h2>", unsafe_allow_html=True
-                )
-                timer_placeholder.markdown(
-                    "<h1 style='color:#444;'>00:00</h1>", unsafe_allow_html=True
-                )
-                break
+if stop:
+    st.session_state.running = False
+    st.session_state.reps = 0
+    st.write("Timer stopped.")
 
-# ---------------------------- PAGE SETUP ------------------------------- #
-st.set_page_config(page_title="Yoga Timer", page_icon="🧘‍♀️", layout="centered")
-st.title("🧘‍♀️ Yoga Timer")
-st.caption("Alternate between 'Prepare' and 'Stretch' phases with audio cues.")
-
-yoga_timer()
+if st.session_state.running:
+    while st.session_state.running:
+        st.session_state.reps += 1
+        if st.session_state.reps % 2 == 0:
+            countdown(WORK_SEC, "Stretch", BLUE, "beep1.mp3")
+        else:
+            countdown(SHORT_BREAK_SEC, "Prepare", PINK, "beep3.mp3")
