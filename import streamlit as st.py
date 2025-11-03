@@ -6,57 +6,82 @@ import streamlit.components.v1 as components
 PINK = "#e2979c"
 BLUE = "#18abde"
 WHITE = "#ffffff"
-WORK_SEC = 60
-HALF_WORK = WORK_SEC / 2
-SHORT_BREAK_SEC = 10
 
+WORK_SEC = 60         # Stretch duration
+SHORT_BREAK_SEC = 10  # Prepare duration
+
+# ---------------------------- APP SETUP ---------------------------- #
 st.set_page_config(page_title="Yoga Timer", page_icon="🧘", layout="centered")
-
-# ---------------------------- SOUND PLAYER -------------------------- #
-# JavaScript for sound playback
-def play_sound_js(file):
-    components.html(f"""
-        <audio id="sound" src="{file}" autoplay></audio>
-    """, height=0)
-
-# ---------------------------- TIMER LOGIC ---------------------------- #
-def countdown(seconds, phase_name, color, sound_file):
-    st.markdown(f"<h2 style='color:{color}'>{phase_name}</h2>", unsafe_allow_html=True)
-    placeholder = st.empty()
-
-    # Start sound (user click will already allow playback)
-    play_sound_js(sound_file)
-
-    for remaining in range(seconds, -1, -1):
-        placeholder.markdown(f"<h1 style='color:{color};'>{remaining:02d}</h1>", unsafe_allow_html=True)
-        time.sleep(1)
-        if remaining == HALF_WORK:
-            play_sound_js("beep2.mp3")
-
-# ---------------------------- APP UI ------------------------------- #
 st.title("🧘 Yoga Timer")
-st.write("Alternate between **Stretch** and **Prepare** phases.")
+st.caption("Alternate between 'Prepare' and 'Stretch' phases. Click 'Start' to begin.")
 
+# ---------------------------- SESSION STATE ------------------------ #
 if "running" not in st.session_state:
     st.session_state.running = False
+    st.session_state.phase = "Prepare"
+    st.session_state.seconds_remaining = SHORT_BREAK_SEC
     st.session_state.reps = 0
 
-start = st.button("Start Timer 🕒")
-stop = st.button("Stop 🔴")
+# Placeholders for dynamic updates
+header_placeholder = st.empty()
+timer_placeholder = st.empty()
 
-if start:
-    st.session_state.running = True
-    st.session_state.reps = 0
+# ---------------------------- SOUND PLAYER ------------------------ #
+# Function to play sound via HTML audio (must be triggered by user click)
+def play_sound(file):
+    components.html(f"""
+        <audio autoplay>
+            <source src="{file}" type="audio/mp3">
+        </audio>
+    """, height=0)
 
-if stop:
-    st.session_state.running = False
-    st.session_state.reps = 0
-    st.write("Timer stopped.")
+# ---------------------------- TIMER LOGIC -------------------------- #
+def update_timer():
+    # Display phase
+    color = PINK if st.session_state.phase == "Prepare" else BLUE
+    header_placeholder.markdown(f"<h2 style='color:{color}'>{st.session_state.phase}</h2>", unsafe_allow_html=True)
 
-if st.session_state.running:
-    while st.session_state.running:
+    # Display countdown
+    minutes = st.session_state.seconds_remaining // 60
+    seconds = st.session_state.seconds_remaining % 60
+    timer_placeholder.markdown(f"<h1 style='color:{color};'>{minutes:02d}:{seconds:02d}</h1>", unsafe_allow_html=True)
+
+    # Decrease seconds
+    if st.session_state.seconds_remaining > 0:
+        st.session_state.seconds_remaining -= 1
+    else:
+        # Phase finished: switch
         st.session_state.reps += 1
-        if st.session_state.reps % 2 == 0:
-            countdown(WORK_SEC, "Stretch", BLUE, "beep1.mp3")
+        if st.session_state.phase == "Prepare":
+            st.session_state.phase = "Stretch"
+            st.session_state.seconds_remaining = WORK_SEC
+            play_sound("beep1.mp3")
         else:
-            countdown(SHORT_BREAK_SEC, "Prepare", PINK, "beep3.mp3")
+            st.session_state.phase = "Prepare"
+            st.session_state.seconds_remaining = SHORT_BREAK_SEC
+            play_sound("beep2.mp3")
+
+# ---------------------------- BUTTONS ------------------------------ #
+col1, col2 = st.columns(2)
+start_btn = col1.button("Start 🕒")
+stop_btn = col2.button("Stop 🔴")
+
+if start_btn:
+    st.session_state.running = True
+    # Play initial sound
+    play_sound("beep1.mp3")
+
+if stop_btn:
+    st.session_state.running = False
+    st.session_state.phase = "Prepare"
+    st.session_state.seconds_remaining = SHORT_BREAK_SEC
+    st.session_state.reps = 0
+    header_placeholder.markdown("<h2>Timer Stopped 🧘‍♀️</h2>", unsafe_allow_html=True)
+    timer_placeholder.markdown("<h1 style='color:#444;'>00:00</h1>", unsafe_allow_html=True)
+
+# ---------------------------- RUN TIMER --------------------------- #
+if st.session_state.running:
+    # Use a "Next second" button to trigger each tick
+    tick_btn = st.button("Next second ⏱️ (Click once per second)")
+    if tick_btn:
+        update_timer()
